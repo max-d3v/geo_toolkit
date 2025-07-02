@@ -1,0 +1,52 @@
+# 🌍 GEO (Generative Engine Optimization) Tools
+
+> **Discover how your brand appears in LLM responses and optimize your presence in AI-generated content.**
+
+[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![OpenAI](https://img.shields.io/badge/Powered%20by-OpenAI-black.svg)](https://openai.com)
+
+## 📖 Overview
+
+GEO Tools help you understand and optimize how your company or brand is positioned in Large Language Model (LLM) responses. While these tools are primarily built for ChatGPT (OpenAI), the insights apply to all popular LLMs including Claude, Gemini, and others.
+
+## 🚀 Features
+
+### 🔍 GEO Evaluator
+
+The GEO Evaluator is an intelligent analysis tool that:
+
+- **🔎 Brand Discovery**: Analyzes how LLMs understand and contextualize your brand
+- **🔑 Keyword Extraction**: Breaks down your brand into key search terms that potential users would query
+- **🤖 AI-Powered Analysis**: Uses advanced LLM agents to evaluate brand positioning
+- **📊 Competitive Report**: Generates comprehensive reports showing which companies dominate GEO for your target keywords
+
+
+
+
+
+## 🛠️ Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/geo_agents.git
+cd geo_agents
+
+# Install dependencies with uv (recommended)
+uv sync
+
+# Or with pip
+pip install -r requirements.txt
+```
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## 🌟 Support
+
+If you find this project helpful, please give it a ⭐ on GitHub!
+
+---
+
+*Built with ❤️ for the future of AI-optimized marketing*
