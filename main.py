@@ -87,6 +87,8 @@ def main():
                 words = Prompt.ask("Enter keywords / key searches to refine the search", default="")
                 words_list = [word.strip() for word in words.split(",") if word.strip()]
 
+
+            console.print(f"\n🔍 Adding keywords to refine search: {', '.join(words_list)}", style="yellow")
             compiled_graph.update_state(config, {
                 "refined_keywords": values.get("refined_keywords", []) + words_list,
             })
