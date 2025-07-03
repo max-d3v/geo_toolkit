@@ -11,11 +11,13 @@ from langgraph.graph import MessagesState, StateGraph, END
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage, AIMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langgraph.checkpoint.memory import InMemorySaver
 
 from pydantic import BaseModel, Field
 from typing import List
 from rich.pretty import pprint as rpprint
 
+load_dotenv()
 
 # LLM initialization 
 dumbass_llm = ChatOpenAI(model="gpt-4.1-nano", api_key=os.getenv("GEO_AVAL_API_KEY"))
@@ -42,10 +44,10 @@ class Keywords(TypedDict):
 
 class State(MessagesState):
     target: str
-    location: str | None
-    all_keywords: Keywords
-    refined_keywords: Keywords
-    graph: DominanceGraph
+    location: str
+    all_keywords: List[str]
+    refined_keywords: List[str]
+    graph: DominanceGraph | None
 
 class Agent():
     def __init__(self, language: str = "pt_BR"):
@@ -70,7 +72,6 @@ class Agent():
                 resume_target_info_prompt
             )
         
-        # Store prompts as instance variables
         self.web_info_gathering_prompt = web_info_gathering_prompt
         self.keywords_organization_prompt = keywords_organization_prompt
         self.refine_keywords_prompt = refine_keywords_prompt
@@ -88,10 +89,17 @@ class Agent():
         builder.add_edge("get_keywords", "refine_keywords")
         builder.add_edge("refine_keywords", "gather_results")
         builder.add_edge("gather_results", END)
+        
 
-        self.graph = builder.compile()
+        checkpointer = InMemorySaver()
+        self.graph = builder.compile(checkpointer=checkpointer, interrupt_after=["refine_keywords"])
+
+
+    def get_graph(self):
+        return self.graph
 
     def invoke(self, target: str, city: str):
+        config = {"configurable": {"thread_id": "1"}}
         self.openai_web_research_tool = {"type": "web_search_preview", "user_location": {
             "type": "approximate",
             "city": city,
@@ -99,10 +107,13 @@ class Agent():
         }}
 
         return self.graph.invoke({
-            "keywords": [],
+            "all_keywords": [],
+            "refined_keywords": [],
             "target": target,
-            "location": city
-        })
+            "location": city,
+            "graph": DominanceGraph(companies=[]),
+            "messages": []
+        }, config)
 
     def research_target(self, state: State):
         #print("=== Generating company overview ===")
