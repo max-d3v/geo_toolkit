@@ -120,6 +120,7 @@ structure_brands_dominance_prompt = ChatPromptTemplate([
     ("system", """
     Dada uma lista de pesquisas e resultados, estruture como o cenário de marcas está estruturado em geral.
     Obtenha as diferentes marcas, quantas vezes aparecem e as URLs relevantes fornecidas para cada marca.
+     NÃO INCLUA URLs do GOOGLE MAPS. APENAS URLS AUTORAIS DAS EMPRESAS
 """),
 MessagesPlaceholder("web_results")
 ])

@@ -50,34 +50,11 @@ class State(MessagesState):
     graph: DominanceGraph | None
 
 class Agent():
-    def __init__(self, language: str = "pt_BR"):
+    def __init__(self):
         self.console = Console()
-        self.language = language
         
-        # Dynamic import of prompts based on language
-        if language == "en_US":
-            from prompts.en_US import (
-                web_info_gathering_prompt,
-                keywords_organization_prompt,
-                refine_keywords_prompt,
-                structure_brands_dominance_prompt,
-                resume_target_info_prompt
-            )
-        else:  # Default to pt_BR
-            from prompts.pt_BR import (
-                web_info_gathering_prompt,
-                keywords_organization_prompt,
-                refine_keywords_prompt,
-                structure_brands_dominance_prompt,
-                resume_target_info_prompt
-            )
         
-        self.web_info_gathering_prompt = web_info_gathering_prompt
-        self.keywords_organization_prompt = keywords_organization_prompt
-        self.refine_keywords_prompt = refine_keywords_prompt
-        self.structure_brands_dominance_prompt = structure_brands_dominance_prompt
-        self.resume_target_info_prompt = resume_target_info_prompt
-        
+        # Dynamic import of prompts based on language        
         builder = StateGraph(State)
         builder.add_node("web_research", self.research_target)
         builder.add_node("get_keywords", self.get_keywords)
@@ -98,8 +75,33 @@ class Agent():
     def get_graph(self):
         return self.graph
 
-    def invoke(self, target: str, city: str):
-        config = {"configurable": {"thread_id": "1"}}
+    def invoke(self, target: str, city: str, language: str, config: dict):
+        self.language = language
+        if language == "en_US":
+            from prompts.en_US import (
+                web_info_gathering_prompt,
+                keywords_organization_prompt,
+                refine_keywords_prompt,
+                structure_brands_dominance_prompt,
+                resume_target_info_prompt
+            )
+        else:  # Default to pt_BR
+            from prompts.pt_BR import (
+                web_info_gathering_prompt,
+                keywords_organization_prompt,
+                refine_keywords_prompt,
+                structure_brands_dominance_prompt,
+                resume_target_info_prompt
+            )
+
+        self.web_info_gathering_prompt = web_info_gathering_prompt
+        self.keywords_organization_prompt = keywords_organization_prompt
+        self.refine_keywords_prompt = refine_keywords_prompt
+        self.structure_brands_dominance_prompt = structure_brands_dominance_prompt
+        self.resume_target_info_prompt = resume_target_info_prompt
+
+        
+        
         self.openai_web_research_tool = {"type": "web_search_preview", "user_location": {
             "type": "approximate",
             "city": city,
