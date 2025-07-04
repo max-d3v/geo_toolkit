@@ -127,7 +127,7 @@ class Agent():
         web_researcher_agent = self.web_info_gathering_prompt | llm.bind_tools([self.openai_web_research_tool]) # The tool called directly in the openAI model runs automatically
         research_result = web_researcher_agent.invoke({"messages": [HumanMessage(content=target)]})
 
-        #rpprint(research_result)
+        rpprint(research_result)
         return { "messages": [HumanMessage(target), research_result], "location": location }
     
     def get_keywords(self, state: State):
@@ -142,7 +142,7 @@ class Agent():
                 new_length = len(chunk["keywords"])
                 if new_length > last_length:
                     keyword = chunk["keywords"][-2]
-                    #print(f"Keyword found: {keyword}")
+                    print(f"Keyword found: {keyword}")
                     keywords.append(keyword)
                     last_length = new_length
         
@@ -176,10 +176,10 @@ class Agent():
         keywords = state.get("refined_keywords")
         if len(keywords) == 0:
             raise Exception("No keywords given for gathering results.")
-        if len(keywords) > 5:
+        if len(keywords) > 10:
             keywords = keywords[0:4]
 
-        researches_results = []
+        researches_results = [] 
         for keyword in keywords:
             agent = ChatPromptTemplate([HumanMessage(keyword)]) | llm.bind_tools([self.openai_web_research_tool]) # The keywords should be structured in a way that triggers a web research. If none is triggered, will base it in the llms base of knowledge
             response = agent.invoke({})

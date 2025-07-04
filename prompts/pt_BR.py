@@ -32,48 +32,51 @@ MessagesPlaceholder("messages")
 
 keywords_organization_prompt = ChatPromptTemplate([
     SystemMessage("""
-Você é um estrategista especialista em palavras-chave de marketing digital GEO.
+Você é um usuário real procurando produtos/serviços online e deve se comportar como tal.
 
-## PAPEL
-Gerar listas abrangentes de palavras-chave baseadas no comportamento de busca real dos usuários.
+## SEU PAPEL
+Simule ser diferentes tipos de usuários (profissionais, consumidores, empresários) buscando soluções que a empresa oferece.
 
 ## TAREFA
-Analise as informações da empresa: {company_info}
+Baseado nas informações da empresa: {company_info}
 
-## METODOLOGIA
-1. **Intenção de Busca**: Considere diferentes motivações
-   - Informacional: "como funciona X", "o que é Y"
-   - Comercial: "melhores X para Y", "X vs Y"
-   - Transacional: "comprar X", "preço de X"
+Pense como diferentes personas de usuários e liste o que eles digitariam no Google quando precisam dos produtos/serviços dessa empresa.
 
-2. **Tipos de Palavras-chave**:
-   - Genéricas: termos amplos do setor
-   - Específicas: produtos/serviços técnicos
-   - Long-tail: frases mais específicas e detalhadas
-   - Marca: concorrentes e alternativas
+## PERSONAS DE USUÁRIOS
+1. **Usuário Iniciante**: Não conhece termos técnicos
+2. **Profissional da Área**: Usa linguagem técnica
+3. **Comprador Corporativo**: Foca em fornecedores e especificações
+4. **Consumidor Urgente**: Precisa resolver problema rapidamente
 
-## EXEMPLOS DE ESTRUTURA
+## TIPOS DE BUSCAS
+- **Problema**: "como resolver X", "problema com Y"
+- **Solução**: "onde comprar X", "empresa que faz Y"
+- **Comparação**: "melhor X para Y", "X ou Y"
+- **Localização**: "X perto de mim", "fornecedor de X em [cidade]"
+- **Específico**: modelo/marca exata que procura
+
+## EXEMPLO
 **Empresa**: Fabricante de peças de helicóptero
-**Palavras-chave geradas**:
-- Genéricas: "peças de helicóptero", "componentes aeronáuticos"
-- Específicas: "rodas de helicóptero", "sistemas hidráulicos aeronáuticos"
-- Long-tail: "peças de reposição para helicóptero Bell 407"
-- Marca: "peças helicóptero Airbus", "fornecedores Robinson"
+**Buscas de usuários**:
+- Iniciante: "peça quebrou helicóptero", "onde consertar helicóptero"
+- Profissional: "fornecedor peças Bell 407", "sistema hidráulico helicóptero"
+- Corporativo: "fabricante componentes aeronáuticos Brasil"
+- Urgente: "peça helicóptero emergência", "reparo rápido helicóptero"
 
-## FORMATO DE SAÍDA
-Liste 15-20 palavras-chave organizadas por categoria.
+## FORMATO
+Liste 15-20 buscas reais que usuários fariam, organizadas por persona.
 
-## RESTRIÇÕES
-- NÃO inclua o nome da empresa nas palavras-chave
-- Foque em termos com valor comercial real
-- Evite palavras-chave muito genéricas sem contexto
+## IMPORTANTE
+- Escreva como pessoas reais digitam (às vezes com erros, abreviações)
+- Inclua variações regionais do português brasileiro
+- Foque no que o usuário REALMENTE precisa, não no que a empresa vende
 """),
 MessagesPlaceholder("messages")
 ])
 
 refine_keywords_prompt = ChatPromptTemplate([
     ("system", """
-    Dado um conjunto de palavras-chave e descrições de empresa, retorne apenas as TOP 5 melhores palavras-chave.
+    Dado um conjunto de palavras-chave e descrições de empresa, retorne apenas as TOP 10 melhores palavras-chave.
     Retorne as palavras-chave escolhidas como um usuário as buscaria no ChatGPT. Sempre tente separar as palavras que tenham diferentes pesquisas de mercado,
     Para uma analise completa do mercado.
      
