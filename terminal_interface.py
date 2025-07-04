@@ -58,24 +58,21 @@ def main():
 
 
         # Display analysis info
-
         console.print(f"\n🔍 Starting GEO analysis for: [bold]{brand_name}[/bold]")
         console.print(f"📍 Location: [dim]{location}[/dim]")
         console.print(f"🌐 Language: [dim]{language}[/dim]\n")
 
 
-
         # Initialize and run agent
         config = {"configurable": {"thread_id": "1"}}
-        agent = Agent(language=language)
-        result = agent.invoke(target=brand_name, city=city)
+        agent = Agent()
+        agent.invoke(target=brand_name, city=city, language=language, config=config)
+            
 
         # Will stop before gathering results
         compiled_graph = agent.get_graph()
         graph_state = compiled_graph.get_state(config)
         values = graph_state.values
-        #rpprint(graph_state)
-        #rpprint(graph_state.next)
 
         if graph_state.next == ('gather_results',):
             console.print("\n🔄 Want to add keywords / key searches? Max: 5 (divided by ,)", style="yellow")

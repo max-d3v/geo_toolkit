@@ -14,6 +14,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Loader2, X, Plus, Search, BarChart3, Globe, MapPin } from "lucide-react"
+import { getStageName } from '@/lib/utils'
+import AnalysisLoading from '@/components/ui/analysis-loading'
 
 interface Company {
     name: string
@@ -25,6 +27,7 @@ interface AnalysisState {
     step: 'input' | 'keywords' | 'results'
     loading: boolean
     sessionId: string | null
+    currentAnalysysStage: null | string
     formData: {
         brand_name: string
         city: string
@@ -42,6 +45,7 @@ const GeoEvaluator = () => {
         step: 'input',
         loading: false,
         sessionId: null,
+        currentAnalysysStage: null,
         formData: {
             brand_name: '',
             city: '',
@@ -56,7 +60,7 @@ const GeoEvaluator = () => {
 
     const startAnalysis = async (e: React.FormEvent) => {
         e.preventDefault()
-        
+
         if (!state.formData.brand_name.trim()) {
             setState(prev => ({ ...prev, error: 'Company name is required' }))
             return
@@ -65,7 +69,7 @@ const GeoEvaluator = () => {
         setState(prev => ({ ...prev, loading: true, error: null }))
 
         try {
-            const response = await fetch('http://localhost:8000/analyze/start', {
+            const response = await fetch('http://localhost:8000/stream/analyze/start', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -76,17 +80,71 @@ const GeoEvaluator = () => {
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`)
             }
+            if (!response.body) {
+                throw new Error('Response body is null')
+            }
 
-            const data = await response.json()
-            
-            setState(prev => ({
-                ...prev,
-                loading: false,
-                step: 'keywords',
-                sessionId: data.session_id,
-                keywords: data.keywords || [],
-                editedKeywords: data.keywords || []
-            }))
+            setState(prev => ({ ...prev, currentAnalysysStage: 'starting', step: 'keywords' }))
+
+            const reader = response.body.getReader()
+            const decoder = new TextDecoder()
+
+            try {
+                while (true) {
+                    const { done, value } = await reader.read()
+                    if (done) break
+
+                    const chunk = decoder.decode(value, { stream: true })
+                    const lines = chunk.split('\n').filter(line => line.trim())
+                    for (const line of lines) {
+                        const data = JSON.parse(line)
+
+
+                        switch (data.stage) {
+                            case 'initializing':
+                                setState(prev => ({
+                                    ...prev,
+                                    currentAnalysysStage: "Setting up the language model and preparing the analysis environment...",
+                                    sessionId: data.session_id
+                                }))
+                                break
+
+                            case 'analysys':
+                                const operationName = Object.keys(data.data)[0]
+                                const template = getStageName(operationName)
+                                setState(prev => ({
+                                    ...prev,
+                                    currentAnalysysStage: template,
+                                }))
+                                break
+
+                            case 'completed':
+                                setState(prev => ({
+                                    ...prev,
+                                    loading: false,
+                                    step: 'keywords',
+                                    currentAnalysysStage: null,
+                                    sessionId: data.session_id,
+                                    keywords: data.data.keywords || [],
+                                    editedKeywords: data.data.keywords || []
+                                }))
+                                console.log('✅ Analysis completed!')
+                                break
+
+                            case 'error':
+                                throw new Error(data.data)
+                        }
+                    }
+
+                }
+            } catch (error: any) {
+                setState(prev => ({
+                    ...prev,
+                    loading: false,
+                    error: `Failed to read response: ${error.message}`
+                }))
+                return
+            }
         } catch (error) {
             setState(prev => ({
                 ...prev,
@@ -102,7 +160,7 @@ const GeoEvaluator = () => {
         setState(prev => ({ ...prev, loading: true, error: null }))
 
         try {
-            const response = await fetch('http://localhost:8000/analyze/refine', {
+            const response = await fetch('http://localhost:8000/stream/analyze/refine', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -117,15 +175,65 @@ const GeoEvaluator = () => {
                 const errorData = await response.json()
                 throw new Error(errorData.detail || `HTTP error! status: ${response.status}`)
             }
+            if (!response.body) {
+                throw new Error('Response body is null')
+            }
 
-            const data = await response.json()
-            
-            setState(prev => ({
-                ...prev,
-                loading: false,
-                step: 'results',
-                results: data.graph || []
-            }))
+            setState(prev => ({ ...prev, step: 'results' }))
+
+            const reader = response.body.getReader()
+            const decoder = new TextDecoder()
+
+            try {
+                while (true) {
+                    const { done, value } = await reader.read()
+                    if (done) break
+
+                    const chunk = decoder.decode(value, { stream: true })
+                    const lines = chunk.split('\n').filter(line => line.trim())
+                    for (const line of lines) {
+                        const data = JSON.parse(line)
+                        console.log(data)
+
+                        switch (data.stage) {
+                            case 'initializing':
+                                break;
+                            case 'gathering_results':
+                                setState(prev => ({
+                                    ...prev,
+                                    currentAnalysysStage: "Refining chosen keywords",
+                                }))
+                                break
+
+                            case 'completed':
+                                const rawGraphData = data.data.graph || []
+                                const graphPieChartData = rawGraphData.map((company: any) => ({
+                                    company: company.__dict__.name,
+                                    times_cited: company.__dict__.times_cited,
+                                    relevantUrls: company.__dict__.relevantUrls
+                                }))
+
+                                setState(prev => ({
+                                    ...prev,
+                                    loading: false,
+                                    results: graphPieChartData,
+                                    currentAnalysysStage: null
+                                }))
+                                break
+                            case 'error':
+                                throw new Error(data.data)
+                        }
+                    }
+
+                }
+            } catch (error: any) {
+                setState(prev => ({
+                    ...prev,
+                    loading: false,
+                    error: `Failed to read response: ${error.message}`
+                }))
+                return
+            }
         } catch (error) {
             setState(prev => ({
                 ...prev,
@@ -157,6 +265,7 @@ const GeoEvaluator = () => {
             step: 'input',
             loading: false,
             sessionId: null,
+            currentAnalysysStage: null,
             formData: {
                 brand_name: '',
                 city: '',
@@ -190,9 +299,9 @@ const GeoEvaluator = () => {
 
                 <div className='w-full mt-12 p-8'>
                     <div className='flex flex-col lg:flex-row gap-8' style={{ minHeight: 'calc(100vh - 280px)' }}>
-                        
-                        {/* Step 1: Input Form */}
-                        <Card className={`w-full lg:w-1/3 flex flex-col ${state.step !== 'input' ? 'opacity-50' : ''}`} style={{ minHeight: 'calc(100vh - 280px)' }}>
+
+                        {/* Step 1: Input Form - Always active */}
+                        <Card className="w-full lg:w-1/3 flex flex-col" style={{ minHeight: 'calc(100vh - 280px)' }}>
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
                                     <MapPin className="h-5 w-5" />
@@ -216,22 +325,20 @@ const GeoEvaluator = () => {
                                                     ...prev,
                                                     formData: { ...prev.formData, brand_name: e.target.value }
                                                 }))}
-                                                disabled={state.step !== 'input'}
                                                 required
                                             />
                                         </div>
                                         <div className="grid gap-2">
                                             <Label htmlFor="city">City (optional)</Label>
-                                            <Input 
-                                                id="city" 
-                                                type="text" 
+                                            <Input
+                                                id="city"
+                                                type="text"
                                                 placeholder='Paris'
                                                 value={state.formData.city}
                                                 onChange={(e) => setState(prev => ({
                                                     ...prev,
                                                     formData: { ...prev.formData, city: e.target.value }
                                                 }))}
-                                                disabled={state.step !== 'input'}
                                             />
                                         </div>
                                         <div className="grid gap-2">
@@ -243,7 +350,6 @@ const GeoEvaluator = () => {
                                                     ...prev,
                                                     formData: { ...prev.formData, language: e.target.value as 'pt_BR' | 'en_US' }
                                                 }))}
-                                                disabled={state.step !== 'input'}
                                                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                                             >
                                                 <option value="en_US">🇺🇸 English (US)</option>
@@ -254,45 +360,49 @@ const GeoEvaluator = () => {
                                 </form>
                             </CardContent>
                             <CardFooter className="mt-auto">
-                                {state.step === 'input' ? (
-                                    <Button 
-                                        onClick={startAnalysis} 
+                                {state.step === 'input' && !state.loading ? (
+                                    <Button
+                                        onClick={startAnalysis}
                                         className="w-full"
                                         disabled={state.loading}
                                     >
-                                        {state.loading ? (
-                                            <>
-                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                Analyzing...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Search className="mr-2 h-4 w-4" />
-                                                Start Analysis
-                                            </>
-                                        )}
+                                        <>
+                                            <Search className="mr-2 h-4 w-4" />
+                                            Start Analysis
+                                        </>
                                     </Button>
                                 ) : (
-                                    <Button 
-                                        onClick={resetAnalysis} 
-                                        variant="outline"
-                                        className="w-full"
-                                    >
-                                        Start New Analysis
-                                    </Button>
+                                    <div className="flex gap-2 w-full">
+                                        <Button
+                                            onClick={startAnalysis}
+                                            variant="outline"
+                                            className="flex-1"
+                                            disabled={state.loading}
+                                        >
+                                            <Search className="mr-2 h-4 w-4" />
+                                            Re-analyze
+                                        </Button>
+                                        <Button
+                                            onClick={resetAnalysis}
+                                            variant="outline"
+                                            className="flex-1"
+                                        >
+                                            Reset
+                                        </Button>
+                                    </div>
                                 )}
                             </CardFooter>
                         </Card>
 
-                        {/* Step 2: Keywords Card - Always visible */}
-                        <Card className={`w-full lg:w-1/3 flex flex-col ${state.step === 'input' ? 'opacity-50' : state.step === 'results' ? 'opacity-50' : ''}`} style={{ minHeight: 'calc(100vh - 280px)' }}>
+                        {/* Step 2: Keywords Card - Always visible, active after first analysis */}
+                        <Card className={`w-full lg:w-1/3 flex flex-col ${state.step === 'input' && state.keywords.length === 0 ? 'opacity-50' : ''}`} style={{ minHeight: 'calc(100vh - 280px)' }}>
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
                                     <Globe className="h-5 w-5" />
-                                    Keywords Refinement
+                                    Analysis
                                 </CardTitle>
                                 <CardDescription>
-                                    {state.step === 'input' 
+                                    {state.keywords.length === 0
                                         ? 'Keywords will appear here after analysis starts'
                                         : 'Edit, add or remove keywords for your analysis (max 5)'
                                     }
@@ -300,48 +410,60 @@ const GeoEvaluator = () => {
                             </CardHeader>
                             <CardContent className="flex-1">
                                 <div className="space-y-4">
-                                    {state.step === 'input' ? (
-                                        // Placeholder content when no analysis has started
+                                    {state.keywords.length === 0 ? (
+                                        // Loading Component for analysis stages
                                         <div className="space-y-4">
-                                            <div className="flex flex-wrap gap-2">
-                                                
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <Input
-                                                    placeholder="Add new keyword..."
-                                                    disabled
-                                                    className="opacity-50"
-                                                />
-                                                <Button size="icon" disabled className="opacity-50">
-                                                    <Plus className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                            <p className="text-sm text-muted-foreground opacity-50">
-                                                0/5 keywords
-                                            </p>
+                                            <AnalysisLoading
+                                                currentStage={state.currentAnalysysStage}
+                                                isLoading={state.loading}
+                                            />
+
+                                            {/* Placeholder inputs when no keywords yet */}
+                                            {!state.loading && !state.currentAnalysysStage && (
+                                                <>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        <Badge variant="outline" className="opacity-30">Keyword 1</Badge>
+                                                        <Badge variant="outline" className="opacity-30">Keyword 2</Badge>
+                                                        <Badge variant="outline" className="opacity-30">Keyword 3</Badge>
+                                                    </div>
+
+                                                    <div className="flex gap-2">
+                                                        <Input
+                                                            placeholder="Add new keyword..."
+                                                            disabled
+                                                            className="opacity-50"
+                                                        />
+                                                        <Button size="icon" disabled className="opacity-50">
+                                                            <Plus className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+
+                                                    <p className="text-sm text-muted-foreground opacity-50">
+                                                        0/5 keywords
+                                                    </p>
+                                                </>
+                                            )}
                                         </div>
                                     ) : (
-                                        // Actual keywords content
+                                        // Actual keywords content - always editable once generated
                                         <div className="space-y-4">
                                             <div className="flex flex-wrap gap-2">
                                                 {state.editedKeywords.map((keyword, index) => (
-                                                    <Badge 
-                                                        key={index} 
-                                                        variant="secondary" 
+                                                    <Badge
+                                                        key={index}
+                                                        variant="secondary"
                                                         className="flex items-center gap-1"
                                                     >
                                                         {keyword}
-                                                        {state.step === 'keywords' && (
-                                                            <X 
-                                                                className="h-3 w-3 cursor-pointer hover:text-destructive" 
-                                                                onClick={() => removeKeyword(index)}
-                                                            />
-                                                        )}
+                                                        <X
+                                                            className="h-3 w-3 cursor-pointer hover:text-destructive"
+                                                            onClick={() => removeKeyword(index)}
+                                                        />
                                                     </Badge>
                                                 ))}
                                             </div>
-                                            
-                                            {state.step === 'keywords' && state.editedKeywords.length < 5 && (
+
+                                            {state.editedKeywords.length < 5 && (
                                                 <div className="flex gap-2">
                                                     <Input
                                                         placeholder="Add new keyword..."
@@ -349,8 +471,8 @@ const GeoEvaluator = () => {
                                                         onChange={(e) => setState(prev => ({ ...prev, newKeyword: e.target.value }))}
                                                         onKeyPress={(e) => e.key === 'Enter' && addKeyword()}
                                                     />
-                                                    <Button 
-                                                        onClick={addKeyword} 
+                                                    <Button
+                                                        onClick={addKeyword}
                                                         size="icon"
                                                         disabled={!state.newKeyword.trim()}
                                                     >
@@ -358,7 +480,7 @@ const GeoEvaluator = () => {
                                                     </Button>
                                                 </div>
                                             )}
-                                            
+
                                             <p className="text-sm text-muted-foreground">
                                                 {state.editedKeywords.length}/5 keywords
                                             </p>
@@ -367,37 +489,27 @@ const GeoEvaluator = () => {
                                 </div>
                             </CardContent>
                             <CardFooter className="mt-auto">
-                                {state.step === 'keywords' ? (
-                                    <Button 
-                                        onClick={refineAnalysis} 
-                                        className="w-full"
-                                        disabled={state.loading || state.editedKeywords.length === 0}
-                                    >
-                                        {state.loading ? (
-                                            <>
-                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                Processing...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <BarChart3 className="mr-2 h-4 w-4" />
-                                                Generate Results
-                                            </>
-                                        )}
-                                    </Button>
-                                ) : (
-                                    <Button 
-                                        className="w-full"
-                                        disabled
-                                    >
-                                        <BarChart3 className="mr-2 h-4 w-4" />
-                                        Generate Results
-                                    </Button>
-                                )}
+                                <Button
+                                    onClick={refineAnalysis}
+                                    className="w-full"
+                                    disabled={state.loading || state.editedKeywords.length === 0}
+                                >
+                                    {state.loading ? (
+                                        <>
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            Processing...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <BarChart3 className="mr-2 h-4 w-4" />
+                                            {state.step === 'results' ? 'Update Results' : 'Generate Results'}
+                                        </>
+                                    )}
+                                </Button>
                             </CardFooter>
                         </Card>
 
-                        {/* Step 3: Results Card */}
+                        {/* Step 3: Results Card - Shows when results are available */}
                         {state.step === 'results' && (
                             <Card className="w-full lg:w-1/3 flex flex-col" style={{ minHeight: 'calc(100vh - 280px)' }}>
                                 <CardHeader>
@@ -428,10 +540,10 @@ const GeoEvaluator = () => {
                                                         <div className="space-y-1">
                                                             <p className="text-sm text-muted-foreground">Relevant URLs:</p>
                                                             {company.relevantUrls.slice(0, 3).map((url, urlIndex) => (
-                                                                <a 
+                                                                <a
                                                                     key={urlIndex}
-                                                                    href={url} 
-                                                                    target="_blank" 
+                                                                    href={url}
+                                                                    target="_blank"
                                                                     rel="noopener noreferrer"
                                                                     className="text-xs text-blue-600 hover:underline block truncate"
                                                                 >

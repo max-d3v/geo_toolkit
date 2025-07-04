@@ -20,11 +20,13 @@ from rich.pretty import pprint as rpprint
 load_dotenv()
 
 # LLM initialization 
+
 dumbass_llm = ChatOpenAI(model="gpt-4.1-nano", api_key=os.getenv("GEO_AVAL_API_KEY"))
 llm = ChatOpenAI(model="gpt-4.1-mini", api_key=os.getenv("GEO_AVAL_API_KEY"))
 smart_llm = ChatOpenAI(model="gpt-4.1", api_key=os.getenv("GEO_AVAL_API_KEY"))
 
-# Tools
+# Structured Outputs
+
 class Company(BaseModel):
     "Company data"
     name: str
@@ -108,7 +110,7 @@ class Agent():
             "region": city,
         }}
 
-        return self.graph.invoke({
+        return self.graph.stream({
             "all_keywords": [],
             "refined_keywords": [],
             "target": target,
@@ -172,6 +174,8 @@ class Agent():
         #print("=== Gathering and organizing cited companies ===")
 
         keywords = state.get("refined_keywords")
+        if len(keywords) == 0:
+            raise Exception("No keywords given for gathering results.")
         if len(keywords) > 5:
             keywords = keywords[0:4]
 
@@ -179,7 +183,13 @@ class Agent():
         for keyword in keywords:
             agent = ChatPromptTemplate([HumanMessage(keyword)]) | llm.bind_tools([self.openai_web_research_tool]) # The keywords should be structured in a way that triggers a web research. If none is triggered, will base it in the llms base of knowledge
             response = agent.invoke({})
-            researches_results.append(response)
+            tool_called = response.additional_kwargs.get("tool_outputs")
+            rpprint(response)
+            # Filter out responses that did not trigger web research
+            if tool_called and len(tool_called) > 0:
+                researches_results.append(response)
+            
+            
         
         structurer_agent = self.structure_brands_dominance_prompt | llm.with_structured_output(DominanceGraph)
         structurer_response = structurer_agent.invoke({"web_results": researches_results})

@@ -1,8 +1,6 @@
 ### Next Steps
 
-## HITL for specific keywords or keyword edit
-
-## Next.js interface for visualization and plotting of graph
+## Filter out result gathering that did not trigger web research for N motives.
 
 ## Prompt engineering for optimal results
 
