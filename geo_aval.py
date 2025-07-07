@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from typing_extensions import Annotated, TypedDict
+from typing_extensions import Annotated, TypedDict, Optional
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt
@@ -16,6 +16,8 @@ from langgraph.checkpoint.memory import InMemorySaver
 from pydantic import BaseModel, Field
 from typing import List
 from rich.pretty import pprint as rpprint
+
+
 
 load_dotenv()
 
@@ -40,45 +42,39 @@ class DominanceGraph(BaseModel):
 class Keywords(TypedDict):
     keywords: List[str] = Field(description="List of the keywords abstracted from given info")
 
-
-
 # Agent definition
 
 class State(MessagesState):
     target: str
     location: str
-    all_keywords: List[str]
-    refined_keywords: List[str]
+    keywords: List[str]
     graph: DominanceGraph | None
 
 class Agent():
     def __init__(self):
         self.console = Console()
         
-        
-        # Dynamic import of prompts based on language        
         builder = StateGraph(State)
+        builder.add_node("route_starting_node", self.route_starting_node)
         builder.add_node("web_research", self.research_target)
         builder.add_node("get_keywords", self.get_keywords)
-        builder.add_node("refine_keywords", self.refine_keywords)
         builder.add_node('gather_results', self.gather_cited_companies)
 
-        builder.set_entry_point("web_research")
+        builder.set_entry_point("route_starting_node")
         builder.add_edge("web_research", "get_keywords")
-        builder.add_edge("get_keywords", "refine_keywords")
-        builder.add_edge("refine_keywords", "gather_results")
+        builder.add_edge("get_keywords", "gather_results")
         builder.add_edge("gather_results", END)
         
 
         checkpointer = InMemorySaver()
-        self.graph = builder.compile(checkpointer=checkpointer, interrupt_after=["refine_keywords"])
-
+        self.graph = builder.compile(checkpointer=checkpointer, interrupt_after=["get_keywords"])
 
     def get_graph(self):
         return self.graph
 
-    def invoke(self, target: str, city: str, language: str, config: dict):
+    def invoke(self, target: str, city: str, language: str, keywords: List[str], type: str, config: dict | None = None):
         self.language = language
+
         if language == "en_US":
             from prompts.en_US import (
                 web_info_gathering_prompt,
@@ -87,7 +83,7 @@ class Agent():
                 structure_brands_dominance_prompt,
                 resume_target_info_prompt
             )
-        else:  # Default to pt_BR
+        else:
             from prompts.pt_BR import (
                 web_info_gathering_prompt,
                 keywords_organization_prompt,
@@ -101,8 +97,6 @@ class Agent():
         self.refine_keywords_prompt = refine_keywords_prompt
         self.structure_brands_dominance_prompt = structure_brands_dominance_prompt
         self.resume_target_info_prompt = resume_target_info_prompt
-
-        
         
         self.openai_web_research_tool = {"type": "web_search_preview", "user_location": {
             "type": "approximate",
@@ -110,18 +104,32 @@ class Agent():
             "region": city,
         }}
 
-        return self.graph.stream({
-            "all_keywords": [],
-            "refined_keywords": [],
-            "target": target,
-            "location": city,
-            "graph": DominanceGraph(companies=[]),
-            "messages": []
-        }, config)
+        if type == "invoke":
+            # This is the initial invocation, we will start the research
+            return self.graph.invoke({
+                "keywords": keywords,
+                "target": target,
+                "location": city,
+                "graph": DominanceGraph(companies=[]),
+                "messages": []
+            }, config)
+        else:
+            return self.graph.stream({
+                "keywords": keywords,
+                "target": target,
+                "location": city,
+                "graph": DominanceGraph(companies=[]),
+                "messages": []
+            }, config)
+        
+    def route_starting_node(self, state: State):
+        keywords = state.get("keywords")
+        if keywords and len(keywords) > 0:
+            return "gather_results"
+        else:
+            return "web_research"
 
     def research_target(self, state: State):
-        #print("=== Generating company overview ===")
-
         target = state.get("target")
         location = state.get("location")
         web_researcher_agent = self.web_info_gathering_prompt | llm.bind_tools([self.openai_web_research_tool]) # The tool called directly in the openAI model runs automatically
@@ -131,8 +139,6 @@ class Agent():
         return { "messages": [HumanMessage(target), research_result], "location": location }
     
     def get_keywords(self, state: State):
-        #print("=== Generating Keywords ===")
-
         messages = state.get("messages")
         keyword_organizer_agent = self.keywords_organization_prompt | smart_llm.with_structured_output(Keywords)
         keywords = []
@@ -146,35 +152,12 @@ class Agent():
                     keywords.append(keyword)
                     last_length = new_length
         
-        return { "all_keywords": keywords }
-
-    def refine_keywords(self, state: State):
-        #print("=== Refining keywords ===")
-
-        keywords = state.get("all_keywords")
-        location = state.get("location")
-        messages = state.get("messages")
-
-        target_resume = (self.resume_target_info_prompt | dumbass_llm).invoke({"messages": messages})
-
-
-        agent = self.refine_keywords_prompt | smart_llm.with_structured_output(Keywords)
-        response = agent.invoke({"keywords": keywords, "target_resume": target_resume})
-        
-        refined_keywords = []
-        for keyword in response["keywords"]:
-            refined_keywords.append(f"{keyword} {location or ""}")
-
-        #print(refined_keywords)
-
-        self.console.print(f"🕵️ Keywords selected for GEO analysis: {refined_keywords}")
-        return { "refined_keywords": refined_keywords }
-        
+        return { "keywords": keywords }
+    
+            
     def gather_cited_companies(self, state: State):
-        #print("=== Gathering and organizing cited companies ===")
-
-        keywords = state.get("refined_keywords")
-        if len(keywords) == 0:
+        keywords = state.get("keywords")
+        if keywords and len(keywords) == 0:
             raise Exception("No keywords given for gathering results.")
         if len(keywords) > 10:
             keywords = keywords[0:4]
@@ -194,7 +177,6 @@ class Agent():
         structurer_agent = self.structure_brands_dominance_prompt | llm.with_structured_output(DominanceGraph)
         structurer_response = structurer_agent.invoke({"web_results": researches_results})
 
-        #rpprint(structurer_response.companies)
         return { "graph": structurer_response.companies }
         
 
