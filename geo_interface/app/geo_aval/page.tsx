@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { Button } from "@/components/ui/button"
 import {
     Card,
@@ -13,12 +13,20 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, X, Plus, Search, BarChart3, Globe, MapPin } from "lucide-react"
+import { Loader2, X, Plus, Search, BarChart3, Globe, MapPin, TrendingUp } from "lucide-react"
 import { getStageName } from '@/lib/utils'
 import AnalysisLoading from '@/components/ui/analysis-loading'
+import { Pie, PieChart, Sector, Cell } from "recharts"
+import { PieSectorDataItem } from "recharts/types/polar/Pie"
+import {
+    ChartConfig,
+    ChartContainer,
+    ChartTooltip,
+    ChartTooltipContent,
+} from "@/components/ui/chart"
 
 interface Company {
-    name: string
+    company: string
     relevantUrls: string[]
     times_cited: number
 }
@@ -39,6 +47,8 @@ interface AnalysisState {
     results: Company[]
     error: string | null
 }
+
+const maxKeywords = 10
 
 const GeoEvaluator = () => {
     const [state, setState] = useState<AnalysisState>({
@@ -69,7 +79,7 @@ const GeoEvaluator = () => {
         setState(prev => ({ ...prev, loading: true, error: null }))
 
         try {
-            const response = await fetch('http://localhost:8000/stream/analyze/start', {
+            const response = await fetch('http://localhost:8000/stream/analyze/get_keywords', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -160,14 +170,14 @@ const GeoEvaluator = () => {
         setState(prev => ({ ...prev, loading: true, error: null }))
 
         try {
-            const response = await fetch('http://localhost:8000/stream/analyze/refine', {
+            const response = await fetch('http://localhost:8000/stream/analyze/get_rankings', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
                     session_id: state.sessionId,
-                    refined_keywords: state.editedKeywords
+                    keywords: state.editedKeywords
                 }),
             })
 
@@ -251,7 +261,7 @@ const GeoEvaluator = () => {
     }
 
     const addKeyword = () => {
-        if (state.newKeyword.trim() && state.editedKeywords.length < 5) {
+        if (state.newKeyword.trim() && state.editedKeywords.length < maxKeywords) {
             setState(prev => ({
                 ...prev,
                 editedKeywords: [...prev.editedKeywords, prev.newKeyword.trim()],
@@ -279,6 +289,32 @@ const GeoEvaluator = () => {
         })
     }
 
+    // Create chart data and configuration
+    const chartData = useMemo(() => {
+        return state.results.map((company, index) => ({
+            company: company.company,
+            times_cited: company.times_cited,
+            fill: `var(--chart-${(index % 5) + 1})`,
+        }))
+    }, [state.results])
+
+    const chartConfig = useMemo(() => {
+        const config: ChartConfig = {
+            times_cited: {
+                label: "Times Cited",
+            },
+        }
+        
+        state.results.forEach((company, index) => {
+            config[company.company.toLowerCase().replace(/\s+/g, '_')] = {
+                label: company.company,
+                color: `var(--chart-${(index % 5) + 1})`,
+            }
+        })
+        
+        return config
+    }, [state.results])
+
     return (
         <div className='min-h-screen bg-background'>
             <div className='container mx-auto py-8'>
@@ -298,271 +334,323 @@ const GeoEvaluator = () => {
                 )}
 
                 <div className='w-full mt-12 p-8'>
-                    <div className='flex flex-col lg:flex-row gap-8' style={{ minHeight: 'calc(100vh - 280px)' }}>
-
-                        {/* Step 1: Input Form - Always active */}
-                        <Card className="w-full lg:w-1/3 flex flex-col" style={{ minHeight: 'calc(100vh - 280px)' }}>
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <MapPin className="h-5 w-5" />
-                                    Company Details
-                                </CardTitle>
-                                <CardDescription>
-                                    Enter your company details and targeted market for analysis
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent className="flex-1">
-                                <form onSubmit={startAnalysis}>
-                                    <div className="flex flex-col gap-4">
-                                        <div className="grid gap-2">
-                                            <Label htmlFor="brand_name">Company name</Label>
-                                            <Input
-                                                id="brand_name"
-                                                type="text"
-                                                placeholder="Acme Inc."
-                                                value={state.formData.brand_name}
-                                                onChange={(e) => setState(prev => ({
-                                                    ...prev,
-                                                    formData: { ...prev.formData, brand_name: e.target.value }
-                                                }))}
-                                                required
-                                            />
+                    <div className='flex flex-col gap-8' style={{ minHeight: 'calc(100vh - 280px)' }}>
+                        <div className='w-full flex gap-8' >
+                            {/* Step 1: Input Form - Always active */}
+                            <Card className="w-full lg:w-1/2 flex flex-col" style={{ minHeight: 'calc(100vh - 280px)' }}>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <MapPin className="h-5 w-5" />
+                                        Company Details
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Enter your company details and targeted market for analysis
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="flex-1">
+                                    <form onSubmit={startAnalysis}>
+                                        <div className="flex flex-col gap-4">
+                                            <div className="grid gap-2">
+                                                <Label htmlFor="brand_name">Company name</Label>
+                                                <Input
+                                                    id="brand_name"
+                                                    type="text"
+                                                    placeholder="Acme Inc."
+                                                    value={state.formData.brand_name}
+                                                    onChange={(e) => setState(prev => ({
+                                                        ...prev,
+                                                        formData: { ...prev.formData, brand_name: e.target.value }
+                                                    }))}
+                                                    required
+                                                />
+                                            </div>
+                                            <div className="grid gap-2">
+                                                <Label htmlFor="city">City (optional)</Label>
+                                                <Input
+                                                    id="city"
+                                                    type="text"
+                                                    placeholder='Paris'
+                                                    value={state.formData.city}
+                                                    onChange={(e) => setState(prev => ({
+                                                        ...prev,
+                                                        formData: { ...prev.formData, city: e.target.value }
+                                                    }))}
+                                                />
+                                            </div>
+                                            <div className="grid gap-2">
+                                                <Label htmlFor="language">Language/Market</Label>
+                                                <select
+                                                    id="language"
+                                                    value={state.formData.language}
+                                                    onChange={(e) => setState(prev => ({
+                                                        ...prev,
+                                                        formData: { ...prev.formData, language: e.target.value as 'pt_BR' | 'en_US' }
+                                                    }))}
+                                                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                                >
+                                                    <option value="en_US">🇺🇸 English (US)</option>
+                                                    <option value="pt_BR">🇧🇷 Portuguese (BR)</option>
+                                                </select>
+                                            </div>
                                         </div>
-                                        <div className="grid gap-2">
-                                            <Label htmlFor="city">City (optional)</Label>
-                                            <Input
-                                                id="city"
-                                                type="text"
-                                                placeholder='Paris'
-                                                value={state.formData.city}
-                                                onChange={(e) => setState(prev => ({
-                                                    ...prev,
-                                                    formData: { ...prev.formData, city: e.target.value }
-                                                }))}
-                                            />
-                                        </div>
-                                        <div className="grid gap-2">
-                                            <Label htmlFor="language">Language/Market</Label>
-                                            <select
-                                                id="language"
-                                                value={state.formData.language}
-                                                onChange={(e) => setState(prev => ({
-                                                    ...prev,
-                                                    formData: { ...prev.formData, language: e.target.value as 'pt_BR' | 'en_US' }
-                                                }))}
-                                                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                                            >
-                                                <option value="en_US">🇺🇸 English (US)</option>
-                                                <option value="pt_BR">🇧🇷 Portuguese (BR)</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                </form>
-                            </CardContent>
-                            <CardFooter className="mt-auto">
-                                {state.step === 'input' && !state.loading ? (
-                                    <Button
-                                        onClick={startAnalysis}
-                                        className="w-full"
-                                        disabled={state.loading}
-                                    >
-                                        <>
-                                            <Search className="mr-2 h-4 w-4" />
-                                            Start Analysis
-                                        </>
-                                    </Button>
-                                ) : (
-                                    <div className="flex gap-2 w-full">
+                                    </form>
+                                </CardContent>
+                                <CardFooter className="mt-auto">
+                                    {state.step === 'input' && !state.loading ? (
                                         <Button
                                             onClick={startAnalysis}
-                                            variant="outline"
-                                            className="flex-1"
+                                            className="w-full"
                                             disabled={state.loading}
                                         >
-                                            <Search className="mr-2 h-4 w-4" />
-                                            Re-analyze
+                                            <>
+                                                <Search className="mr-2 h-4 w-4" />
+                                                Start Analysis
+                                            </>
                                         </Button>
-                                        <Button
-                                            onClick={resetAnalysis}
-                                            variant="outline"
-                                            className="flex-1"
-                                        >
-                                            Reset
-                                        </Button>
-                                    </div>
-                                )}
-                            </CardFooter>
-                        </Card>
+                                    ) : (
+                                        <div className="flex gap-2 w-full">
+                                            <Button
+                                                onClick={startAnalysis}
+                                                variant="outline"
+                                                className="flex-1"
+                                                disabled={state.loading}
+                                            >
+                                                <Search className="mr-2 h-4 w-4" />
+                                                Re-analyze
+                                            </Button>
+                                            <Button
+                                                onClick={resetAnalysis}
+                                                variant="outline"
+                                                className="flex-1"
+                                            >
+                                                Reset
+                                            </Button>
+                                        </div>
+                                    )}
+                                </CardFooter>
+                            </Card>
 
-                        {/* Step 2: Keywords Card - Always visible, active after first analysis */}
-                        <Card className={`w-full lg:w-1/3 flex flex-col ${state.step === 'input' && state.keywords.length === 0 ? 'opacity-50' : ''}`} style={{ minHeight: 'calc(100vh - 280px)' }}>
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <Globe className="h-5 w-5" />
-                                    Analysis
-                                </CardTitle>
-                                <CardDescription>
-                                    {state.keywords.length === 0
-                                        ? 'Keywords will appear here after analysis starts'
-                                        : 'Edit, add or remove keywords for your analysis (max 5)'
-                                    }
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent className="flex-1">
-                                <div className="space-y-4">
-                                    {state.keywords.length === 0 ? (
-                                        // Loading Component for analysis stages
-                                        <div className="space-y-4">
-                                            <AnalysisLoading
-                                                currentStage={state.currentAnalysysStage}
-                                                isLoading={state.loading}
-                                            />
+                            {/* Step 2: Keywords Card - Always visible, active after first analysis */}
+                            <Card className={`w-full lg:w-1/2 flex flex-col ${state.step === 'input' && state.keywords.length === 0 ? 'opacity-50' : ''}`} style={{ minHeight: 'calc(100vh - 280px)' }}>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Globe className="h-5 w-5" />
+                                        Analysis
+                                    </CardTitle>
+                                    <CardDescription>
+                                        {state.keywords.length === 0
+                                            ? 'Keywords will appear here after analysis starts'
+                                            : 'Edit, add or remove keywords for your analysis (max 5)'
+                                        }
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="flex-1">
+                                    <div className="space-y-4">
+                                        {state.keywords.length === 0 ? (
+                                            // Loading Component for analysis stages
+                                            <div className="space-y-4">
+                                                <AnalysisLoading
+                                                    currentStage={state.currentAnalysysStage}
+                                                    isLoading={state.loading}
+                                                />
 
-                                            {/* Placeholder inputs when no keywords yet */}
-                                            {!state.loading && !state.currentAnalysysStage && (
-                                                <>
-                                                    <div className="flex flex-wrap gap-2">
-                                                        <Badge variant="outline" className="opacity-30">Keyword 1</Badge>
-                                                        <Badge variant="outline" className="opacity-30">Keyword 2</Badge>
-                                                        <Badge variant="outline" className="opacity-30">Keyword 3</Badge>
-                                                    </div>
+                                                {/* Placeholder inputs when no keywords yet */}
+                                                {!state.loading && !state.currentAnalysysStage && (
+                                                    <>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            <Badge variant="outline" className="opacity-30">Keyword 1</Badge>
+                                                            <Badge variant="outline" className="opacity-30">Keyword 2</Badge>
+                                                            <Badge variant="outline" className="opacity-30">Keyword 3</Badge>
+                                                        </div>
 
+                                                        <div className="flex gap-2">
+                                                            <Input
+                                                                placeholder="Add new keyword..."
+                                                                disabled
+                                                                className="opacity-50"
+                                                            />
+                                                            <Button size="icon" disabled className="opacity-50">
+                                                                <Plus className="h-4 w-4" />
+                                                            </Button>
+                                                        </div>
+
+                                                        <p className="text-sm text-muted-foreground opacity-50">
+                                                            0/{maxKeywords} keywords
+                                                        </p>
+                                                    </>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            // Actual keywords content - always editable once generated
+                                            <div className="space-y-4">
+                                                <div className="flex flex-wrap gap-2">
+                                                    {state.editedKeywords.map((keyword, index) => (
+                                                        <Badge
+                                                            key={index}
+                                                            variant="secondary"
+                                                            className="flex items-center gap-1"
+                                                        >
+                                                            {keyword}
+                                                            <X
+                                                                className="h-3 w-3 cursor-pointer hover:text-destructive"
+                                                                onClick={() => removeKeyword(index)}
+                                                            />
+                                                        </Badge>
+                                                    ))}
+                                                </div>
+
+                                                {state.editedKeywords.length < maxKeywords && (
                                                     <div className="flex gap-2">
                                                         <Input
                                                             placeholder="Add new keyword..."
-                                                            disabled
-                                                            className="opacity-50"
+                                                            value={state.newKeyword}
+                                                            onChange={(e) => setState(prev => ({ ...prev, newKeyword: e.target.value }))}
+                                                            onKeyPress={(e) => e.key === 'Enter' && addKeyword()}
                                                         />
-                                                        <Button size="icon" disabled className="opacity-50">
+                                                        <Button
+                                                            onClick={addKeyword}
+                                                            size="icon"
+                                                            disabled={!state.newKeyword.trim()}
+                                                        >
                                                             <Plus className="h-4 w-4" />
                                                         </Button>
                                                     </div>
+                                                )}
 
-                                                    <p className="text-sm text-muted-foreground opacity-50">
-                                                        0/5 keywords
-                                                    </p>
-                                                </>
-                                            )}
-                                        </div>
-                                    ) : (
-                                        // Actual keywords content - always editable once generated
-                                        <div className="space-y-4">
-                                            <div className="flex flex-wrap gap-2">
-                                                {state.editedKeywords.map((keyword, index) => (
-                                                    <Badge
-                                                        key={index}
-                                                        variant="secondary"
-                                                        className="flex items-center gap-1"
-                                                    >
-                                                        {keyword}
-                                                        <X
-                                                            className="h-3 w-3 cursor-pointer hover:text-destructive"
-                                                            onClick={() => removeKeyword(index)}
-                                                        />
-                                                    </Badge>
-                                                ))}
+                                                <p className="text-sm text-muted-foreground">
+                                                    {state.editedKeywords.length}/{maxKeywords} keywords
+                                                </p>
                                             </div>
-
-                                            {state.editedKeywords.length < 5 && (
-                                                <div className="flex gap-2">
-                                                    <Input
-                                                        placeholder="Add new keyword..."
-                                                        value={state.newKeyword}
-                                                        onChange={(e) => setState(prev => ({ ...prev, newKeyword: e.target.value }))}
-                                                        onKeyPress={(e) => e.key === 'Enter' && addKeyword()}
-                                                    />
-                                                    <Button
-                                                        onClick={addKeyword}
-                                                        size="icon"
-                                                        disabled={!state.newKeyword.trim()}
-                                                    >
-                                                        <Plus className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                            )}
-
-                                            <p className="text-sm text-muted-foreground">
-                                                {state.editedKeywords.length}/5 keywords
-                                            </p>
-                                        </div>
-                                    )}
-                                </div>
-                            </CardContent>
-                            <CardFooter className="mt-auto">
-                                <Button
-                                    onClick={refineAnalysis}
-                                    className="w-full"
-                                    disabled={state.loading || state.editedKeywords.length === 0}
-                                >
-                                    {state.loading ? (
-                                        <>
-                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                            Processing...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <BarChart3 className="mr-2 h-4 w-4" />
-                                            {state.step === 'results' ? 'Update Results' : 'Generate Results'}
-                                        </>
-                                    )}
-                                </Button>
-                            </CardFooter>
-                        </Card>
-
-                        {/* Step 3: Results Card - Shows when results are available */}
-                        {state.step === 'results' && (
-                            <Card className="w-full lg:w-1/3 flex flex-col" style={{ minHeight: 'calc(100vh - 280px)' }}>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <BarChart3 className="h-5 w-5" />
-                                        Analysis Results
-                                    </CardTitle>
-                                    <CardDescription>
-                                        Companies found in GEO analysis for your keywords
-                                    </CardDescription>
-                                </CardHeader>
-                                <CardContent className="flex-1 overflow-auto">
-                                    <div className="space-y-4">
-                                        {state.results.length === 0 ? (
-                                            <p className="text-muted-foreground text-center py-4">
-                                                No companies found in the analysis
-                                            </p>
-                                        ) : (
-                                            state.results.map((company, index) => (
-                                                <div key={index} className="border rounded-lg p-4 space-y-2">
-                                                    <div className="flex justify-between items-start">
-                                                        <h3 className="font-semibold">{company.name}</h3>
-                                                        <Badge variant="outline">
-                                                            {company.times_cited} mentions
-                                                        </Badge>
-                                                    </div>
-                                                    {company.relevantUrls.length > 0 && (
-                                                        <div className="space-y-1">
-                                                            <p className="text-sm text-muted-foreground">Relevant URLs:</p>
-                                                            {company.relevantUrls.slice(0, 3).map((url, urlIndex) => (
-                                                                <a
-                                                                    key={urlIndex}
-                                                                    href={url}
-                                                                    target="_blank"
-                                                                    rel="noopener noreferrer"
-                                                                    className="text-xs text-blue-600 hover:underline block truncate"
-                                                                >
-                                                                    {url}
-                                                                </a>
-                                                            ))}
-                                                            {company.relevantUrls.length > 3 && (
-                                                                <p className="text-xs text-muted-foreground">
-                                                                    +{company.relevantUrls.length - 3} more URLs
-                                                                </p>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ))
                                         )}
                                     </div>
                                 </CardContent>
+                                <CardFooter className="mt-auto">
+                                    <Button
+                                        onClick={refineAnalysis}
+                                        className="w-full"
+                                        disabled={state.loading || state.editedKeywords.length === 0}
+                                    >
+                                        {state.loading ? (
+                                            <>
+                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                Processing...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <BarChart3 className="mr-2 h-4 w-4" />
+                                                {state.step === 'results' ? 'Update Results' : 'Generate Results'}
+                                            </>
+                                        )}
+                                    </Button>
+                                </CardFooter>
                             </Card>
+
+                        </div>
+
+                        {/* Step 3: Results Card - Shows when results are available */}
+                        {state.step === 'results' && (
+                            <div className="w-full flex gap-8">
+                                {/* Companies List */}
+                                <Card className="w-full lg:w-1/2 flex flex-col">
+                                    <CardHeader>
+                                        <CardTitle className="flex items-center gap-2">
+                                            <BarChart3 className="h-5 w-5" />
+                                            Analysis Results
+                                        </CardTitle>
+                                        <CardDescription>
+                                            Companies found in GEO analysis for your keywords
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent className="flex-1 overflow-auto">
+                                        <div className="space-y-4">
+                                            {state.results.length === 0 ? (
+                                                <p className="text-muted-foreground text-center py-4">
+                                                    No companies found in the analysis
+                                                </p>
+                                            ) : (
+                                                state.results.map((company, index) => (
+                                                    <div key={index} className="border rounded-lg p-4 space-y-2">
+                                                        <div className="flex justify-between items-start">
+                                                            <h3 className="font-semibold">{company.company}</h3>
+                                                            <Badge variant="outline">
+                                                                {company.times_cited} mentions
+                                                            </Badge>
+                                                        </div>
+                                                        {company.relevantUrls.length > 0 && (
+                                                            <div className="space-y-1">
+                                                                <p className="text-sm text-muted-foreground">Relevant URLs:</p>
+                                                                {company.relevantUrls.slice(0, 3).map((url, urlIndex) => (
+                                                                    <a
+                                                                        key={urlIndex}
+                                                                        href={url}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        className="text-xs text-blue-600 hover:underline block truncate"
+                                                                    >
+                                                                        {url}
+                                                                    </a>
+                                                                ))}
+                                                                {company.relevantUrls.length > 3 && (
+                                                                    <p className="text-xs text-muted-foreground">
+                                                                        +{company.relevantUrls.length - 3} more URLs
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+
+                                {/* Donut Chart */}
+                                {state.results.length > 0 && (
+                                    <Card className="w-full lg:w-1/2 flex flex-col">
+                                        <CardHeader className="items-center pb-0">
+                                            <CardTitle>Company Mentions Distribution</CardTitle>
+                                            <CardDescription>
+                                                Analysis results for {state.formData.brand_name}
+                                            </CardDescription>
+                                        </CardHeader>
+                                        <CardContent className="flex-1 pb-0">
+                                            <ChartContainer
+                                                config={chartConfig}
+                                                className="mx-auto aspect-square max-h-[350px]"
+                                            >
+                                                <PieChart>
+                                                    <ChartTooltip
+                                                        cursor={false}
+                                                        content={<ChartTooltipContent hideLabel />}
+                                                    />
+                                                    <Pie
+                                                        data={chartData}
+                                                        dataKey="times_cited"
+                                                        nameKey="company"
+                                                        innerRadius={60}
+                                                        strokeWidth={5}
+                                                        activeIndex={"0"}
+                                                        activeShape={({
+                                                            outerRadius = 0,
+                                                            ...props
+                                                        }: PieSectorDataItem) => (
+                                                            <Sector {...props} outerRadius={outerRadius + 10} />
+                                                        )}
+                                                    />
+                                                </PieChart>
+                                            </ChartContainer>
+                                        </CardContent>
+                                        <CardFooter className="flex-col gap-2 text-sm">
+                                            <div className="flex items-center gap-2 leading-none font-medium">
+                                                Total companies analyzed: {state.results.length} <TrendingUp className="h-4 w-4" />
+                                            </div>
+                                            <div className="text-muted-foreground leading-none">
+                                                Showing citation frequency across all analyzed companies
+                                            </div>
+                                        </CardFooter>
+                                    </Card>
+                                )}
+                            </div>
                         )}
                     </div>
                 </div>
