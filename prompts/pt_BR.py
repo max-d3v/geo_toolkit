@@ -64,7 +64,7 @@ Pense como diferentes personas de usuários e liste o que eles digitariam no Goo
 - Urgente: "peça helicóptero emergência", "reparo rápido helicóptero"
 
 ## FORMATO
-Liste 15-20 buscas reais que usuários fariam, organizadas por persona.
+Liste 10, apenas 10 buscas reais que usuários fariam, organizadas por persona.
 
 ## IMPORTANTE
 - Escreva como pessoas reais digitam (às vezes com erros, abreviações)

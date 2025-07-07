@@ -40,11 +40,11 @@ class CompanyResponse(BaseModel):
     times_cited: int
 
 class RankingsRequest(BaseModel):
-    session_id: Optional[str]
-    brand_name: Optional[str]
-    city: Optional[str]
-    language: Optional[Literal["pt_BR", "en_US"]]
-    keywords: Optional[List[str]]
+    session_id: Optional[str] = None
+    brand_name: Optional[str] = None
+    city: Optional[str] = None
+    language: Optional[Literal["pt_BR", "en_US"]] = None
+    keywords: Optional[List[str]] = []
 
     @model_validator(mode="after")
     def validade_ranking_request(self):

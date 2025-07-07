@@ -24,7 +24,7 @@ async def get_keywords(request: AnalysisRequest):
         config = {"configurable": {"thread_id": session_id}}
         
         #(will stop after keywords were gathered)
-        agent.invoke(target=request.brand_name, city=request.city, language=request.language, config=config)
+        agent.invoke(target=request.brand_name, city=request.city, language=request.language, keywords=[], type="invoke",    config=config)
 
         graph_state = compiled_graph.get_state(config)
         values = graph_state.values
@@ -58,12 +58,13 @@ async def get_rankings(request: RankingsRequest):
             new_session_id = str(uuid.uuid4())
             config = {"configurable": {"thread_id": new_session_id}}
             agent.invoke(brand_name, city, language, keywords, type="invoke", config=config)
-            values = compiled_graph.get_state(config).values
         else:
             config = {"configurable": {"thread_id": session_id}}
-            compiled_graph.invoke(Command(resume=""), config=config)
-            values = compiled_graph.get_state(config).values
-        
+            compiled_graph.invoke(Command(resume="", update={
+                "keywords": keywords if len(keywords) > 0 else None
+            }), config=config)
+
+        values = compiled_graph.get_state(config).values
 
         graph = values.get("graph")
         return {

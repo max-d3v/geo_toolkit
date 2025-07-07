@@ -61,7 +61,7 @@ Analyze the company information: {company_info}
 - Brand: "Airbus helicopter parts", "Robinson suppliers"
 
 ## OUTPUT FORMAT
-List 15-20 keywords organized by category.
+List 10 and only 10 keywords organized by category.
 
 ## RESTRICTIONS
 - DO NOT include the company name in keywords

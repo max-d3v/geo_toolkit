@@ -55,12 +55,13 @@ class Agent():
         self.console = Console()
         
         builder = StateGraph(State)
-        builder.add_node("route_starting_node", self.route_starting_node)
+        builder.add_node("starting_node", self.starting_node)
         builder.add_node("web_research", self.research_target)
         builder.add_node("get_keywords", self.get_keywords)
         builder.add_node('gather_results', self.gather_cited_companies)
 
-        builder.set_entry_point("route_starting_node")
+        builder.set_entry_point("starting_node")
+        builder.add_conditional_edges("starting_node", self.route_starting_node)
         builder.add_edge("web_research", "get_keywords")
         builder.add_edge("get_keywords", "gather_results")
         builder.add_edge("gather_results", END)
@@ -122,12 +123,16 @@ class Agent():
                 "messages": []
             }, config)
         
+    def starting_node(self, state: State):
+        return { "messages": [] }
+
     def route_starting_node(self, state: State):
         keywords = state.get("keywords")
         if keywords and len(keywords) > 0:
             return "gather_results"
         else:
             return "web_research"
+
 
     def research_target(self, state: State):
         target = state.get("target")
@@ -154,6 +159,14 @@ class Agent():
         
         return { "keywords": keywords }
     
+    @staticmethod
+    def add_city_to_keywords(keywords: List[str], city: str):
+        """
+        Adds the city to each keyword in the list.
+        """
+        return [f"{keyword} {city}" for keyword in keywords]
+
+    
             
     def gather_cited_companies(self, state: State):
         keywords = state.get("keywords")
@@ -162,8 +175,10 @@ class Agent():
         if len(keywords) > 10:
             keywords = keywords[0:4]
 
+        formatted_keywords = self.add_city_to_keywords(keywords, state.get("location"))
+
         researches_results = [] 
-        for keyword in keywords:
+        for keyword in formatted_keywords:
             agent = ChatPromptTemplate([HumanMessage(keyword)]) | llm.bind_tools([self.openai_web_research_tool]) # The keywords should be structured in a way that triggers a web research. If none is triggered, will base it in the llms base of knowledge
             response = agent.invoke({})
             tool_called = response.additional_kwargs.get("tool_outputs")
