@@ -93,9 +93,7 @@ async def start_refine_keywords_stream(request: RankingsRequest):
                 new_session_id = str(uuid.uuid4())
                 config = {"configurable": {"thread_id": new_session_id}}
                 
-                # Stream the agent invocation for new session
-                for chunk in agent.invoke(target=brand_name, city=city, language=language, keywords=keywords, type="stream", config=config):
-                    rpprint(chunk)
+                for chunk in agent.invoke(target=brand_name, city=city, language=language, keywords=keywords, type="stream", stream_type="updates", config=config):
                     yield dumps({
                         "stage": "gathering_results",
                         "session_id": new_session_id,
@@ -126,6 +124,7 @@ async def start_refine_keywords_stream(request: RankingsRequest):
                 }
             }, unpicklable=False) + "\n"   
         except Exception as e:
+            rpprint(e)
             yield dumps({
                 "stage": "error",
                 "session_id": session_id if 'session_id' in locals() else None,

@@ -73,7 +73,7 @@ class Agent():
     def get_graph(self):
         return self.graph
 
-    def invoke(self, target: str, city: str, language: str, keywords: List[str], type: str, config: dict | None = None):
+    def invoke(self, target: str, city: str, language: str, keywords: List[str], type: str, stream_type: Optional[str] = None, config: dict | None = None):
         self.language = language
 
         if language == "en_US":
@@ -121,7 +121,7 @@ class Agent():
                 "location": city,
                 "graph": DominanceGraph(companies=[]),
                 "messages": []
-            }, config)
+            }, stream_mode=stream_type, config=config)
         
     def starting_node(self, state: State):
         return { "messages": [] }
@@ -176,23 +176,25 @@ class Agent():
 
         formatted_keywords = self.add_city_to_keywords(keywords, state.get("location"))
 
-
         gathered_results = []
         for keyword in formatted_keywords:
-            agent = ChatPromptTemplate([HumanMessage(keyword)]) | llm.bind_tools([self.openai_web_research_tool]) # The keywords should be structured in a way that triggers a web research. If none is triggered, will base it in the llms base of knowledge
+            agent = ChatPromptTemplate([HumanMessage(keyword)]) | llm.bind_tools([self.openai_web_research_tool])
             response = agent.invoke({})
             tool_called = response.additional_kwargs.get("tool_outputs")
             
             # Filter out responses that did not trigger web research
             if tool_called is not None and len(tool_called) > 0:
                 structurer_agent = self.structure_brands_dominance_prompt | llm.with_structured_output(DominanceGraph)
-                structurer_response = structurer_agent.invoke({"web_results": [response]})
+                for chunk in structurer_agent.stream({"web_results": [response]}):
+                    
+                    if isinstance(chunk, DominanceGraph) and chunk.companies:
+                        companies = chunk.companies
+                        gathered_results.append(companies)
 
-                gathered_results.append(structurer_response.companies)
-            
         flattened_companies = [company for companies_list in gathered_results for company in companies_list]
-
         return { "graph": flattened_companies }
+
+    
         
 
 # Basically 2 types of entities to search - LOCAL OR GLOBAL. Global would be more aimed toward SaaSes or really global companies.
