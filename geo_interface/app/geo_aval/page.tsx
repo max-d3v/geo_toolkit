@@ -64,24 +64,24 @@ const sortAndGroupCompanies = (companies: Company[]) => {
     const areNamesSimilar = (name1: string, name2: string): boolean => {
         const normalized1 = normalizeCompanyName(name1)
         const normalized2 = normalizeCompanyName(name2)
-        
+
         return normalized1.includes(normalized2) || normalized2.includes(normalized1)
     }
 
     const groupedCompanies: { [key: string]: Company } = {}
-    
+
     sortedCompanies.forEach(company => {
-        const existingKey = Object.keys(groupedCompanies).find(key => 
+        const existingKey = Object.keys(groupedCompanies).find(key =>
             areNamesSimilar(key, company.company)
         )
-        
+
         if (existingKey) {
             groupedCompanies[existingKey].times_cited += company.times_cited
             groupedCompanies[existingKey].relevantUrls.push(...company.relevantUrls)
         } else {
-            groupedCompanies[company.company] = { 
-                ...company, 
-                relevantUrls: [...company.relevantUrls] 
+            groupedCompanies[company.company] = {
+                ...company,
+                relevantUrls: [...company.relevantUrls]
             }
         }
     })
@@ -360,14 +360,14 @@ const GeoEvaluator = () => {
                 label: "Times Cited",
             },
         }
-        
+
         state.results.forEach((company, index) => {
             config[company.company.toLowerCase().replace(/\s+/g, '_')] = {
                 label: company.company,
                 color: `var(--chart-${(index % 5) + 1})`,
             }
         })
-        
+
         return config
     }, [state.results])
 
@@ -599,7 +599,6 @@ const GeoEvaluator = () => {
 
                         </div>
 
-                        {/* Step 3: Results Card - Shows when results are available */}
                         {state.step === 'results' && (
                             <div className="w-full flex gap-8">
                                 {/* Companies List */}
@@ -656,7 +655,6 @@ const GeoEvaluator = () => {
                                     </CardContent>
                                 </Card>
 
-                                {/* Donut Chart */}
                                 {state.results.length > 0 && (
                                     <Card className="w-full lg:w-1/2 h-[500px] flex flex-col">
                                         <CardHeader className="items-center pb-0">
