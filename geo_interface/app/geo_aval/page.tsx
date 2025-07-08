@@ -49,6 +49,51 @@ interface AnalysisState {
 }
 
 const maxKeywords = 10
+const sortAndGroupCompanies = (companies: Company[]) => {
+    const sortedCompanies = [...companies].sort((a, b) => b.times_cited - a.times_cited)
+
+    const normalizeCompanyName = (name: string): string => {
+        return name
+            .toLowerCase()
+            .replace(/\b(ltda|ltd|inc|corp|corporation|llc|sa|s\.a\.|distribuidora|comercial|cia|company)\b/g, '')
+            .replace(/[^\w\s]/g, '') // Punctiatio
+            .replace(/\s+/g, ' ')
+            .trim()
+    }
+
+    const areNamesSimilar = (name1: string, name2: string): boolean => {
+        const normalized1 = normalizeCompanyName(name1)
+        const normalized2 = normalizeCompanyName(name2)
+        
+        return normalized1.includes(normalized2) || normalized2.includes(normalized1)
+    }
+
+    const groupedCompanies: { [key: string]: Company } = {}
+    
+    sortedCompanies.forEach(company => {
+        const existingKey = Object.keys(groupedCompanies).find(key => 
+            areNamesSimilar(key, company.company)
+        )
+        
+        if (existingKey) {
+            groupedCompanies[existingKey].times_cited += company.times_cited
+            groupedCompanies[existingKey].relevantUrls.push(...company.relevantUrls)
+        } else {
+            groupedCompanies[company.company] = { 
+                ...company, 
+                relevantUrls: [...company.relevantUrls] 
+            }
+        }
+    })
+
+    return Object.values(groupedCompanies)
+        .map(company => ({
+            ...company,
+            relevantUrls: Array.from(new Set(company.relevantUrls))
+        }))
+        .sort((a, b) => b.times_cited - a.times_cited) // sort again after group
+}
+
 
 const GeoEvaluator = () => {
     const [state, setState] = useState<AnalysisState>({
@@ -164,7 +209,7 @@ const GeoEvaluator = () => {
         }
     }
 
-    const refineAnalysis = async () => {
+    const getRankings = async () => {
         if (!state.sessionId) return
 
         setState(prev => ({ ...prev, loading: true, error: null }))
@@ -209,15 +254,8 @@ const GeoEvaluator = () => {
                             case 'initializing':
                                 break;
                             case 'gathering_results':
-                                setState(prev => ({
-                                    ...prev,
-                                    currentAnalysysStage: "Refining chosen keywords",
-                                }))
-                                break
-
-                            case 'completed':
-                                const rawGraphData = data.data.graph || []
-                                const graphPieChartData = rawGraphData.map((company: any) => ({
+                                const progressGraphData = data.data.gather_results.graph || []
+                                const graphPieChartDataProgress = progressGraphData.map((company: any) => ({
                                     company: company.__dict__.name,
                                     times_cited: company.__dict__.times_cited,
                                     relevantUrls: company.__dict__.relevantUrls
@@ -225,8 +263,26 @@ const GeoEvaluator = () => {
 
                                 setState(prev => ({
                                     ...prev,
+                                    results: graphPieChartDataProgress
+                                }))
+                                break
+
+                            case 'completed':
+                                const rawGraphData = data.data.graph || []
+
+                                const graphPieChartData = rawGraphData.map((company: any) => ({
+                                    company: company.__dict__.name,
+                                    times_cited: company.__dict__.times_cited,
+                                    relevantUrls: company.__dict__.relevantUrls
+                                }))
+
+                                const sortedResults = sortAndGroupCompanies(graphPieChartData)
+
+
+                                setState(prev => ({
+                                    ...prev,
                                     loading: false,
-                                    results: graphPieChartData,
+                                    results: sortedResults,
                                     currentAnalysysStage: null
                                 }))
                                 break
@@ -315,6 +371,7 @@ const GeoEvaluator = () => {
         return config
     }, [state.results])
 
+
     return (
         <div className='min-h-screen bg-background'>
             <div className='container mx-auto py-8'>
@@ -336,7 +393,6 @@ const GeoEvaluator = () => {
                 <div className='w-full mt-12 p-8'>
                     <div className='flex flex-col gap-8' style={{ minHeight: 'calc(100vh - 280px)' }}>
                         <div className='w-full flex gap-8' >
-                            {/* Step 1: Input Form - Always active */}
                             <Card className="w-full lg:w-1/2 flex flex-col" style={{ minHeight: 'calc(100vh - 280px)' }}>
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-2">
@@ -430,7 +486,6 @@ const GeoEvaluator = () => {
                                 </CardFooter>
                             </Card>
 
-                            {/* Step 2: Keywords Card - Always visible, active after first analysis */}
                             <Card className={`w-full lg:w-1/2 flex flex-col ${state.step === 'input' && state.keywords.length === 0 ? 'opacity-50' : ''}`} style={{ minHeight: 'calc(100vh - 280px)' }}>
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-2">
@@ -447,14 +502,12 @@ const GeoEvaluator = () => {
                                 <CardContent className="flex-1">
                                     <div className="space-y-4">
                                         {state.keywords.length === 0 ? (
-                                            // Loading Component for analysis stages
                                             <div className="space-y-4">
                                                 <AnalysisLoading
                                                     currentStage={state.currentAnalysysStage}
                                                     isLoading={state.loading}
                                                 />
 
-                                                {/* Placeholder inputs when no keywords yet */}
                                                 {!state.loading && !state.currentAnalysysStage && (
                                                     <>
                                                         <div className="flex flex-wrap gap-2">
@@ -481,7 +534,6 @@ const GeoEvaluator = () => {
                                                 )}
                                             </div>
                                         ) : (
-                                            // Actual keywords content - always editable once generated
                                             <div className="space-y-4">
                                                 <div className="flex flex-wrap gap-2">
                                                     {state.editedKeywords.map((keyword, index) => (
@@ -526,7 +578,7 @@ const GeoEvaluator = () => {
                                 </CardContent>
                                 <CardFooter className="mt-auto">
                                     <Button
-                                        onClick={refineAnalysis}
+                                        onClick={getRankings}
                                         className="w-full"
                                         disabled={state.loading || state.editedKeywords.length === 0}
                                     >
@@ -606,17 +658,17 @@ const GeoEvaluator = () => {
 
                                 {/* Donut Chart */}
                                 {state.results.length > 0 && (
-                                    <Card className="w-full lg:w-1/2 flex flex-col">
+                                    <Card className="w-full lg:w-1/2 h-[500px] flex flex-col">
                                         <CardHeader className="items-center pb-0">
                                             <CardTitle>Company Mentions Distribution</CardTitle>
                                             <CardDescription>
                                                 Analysis results for {state.formData.brand_name}
                                             </CardDescription>
                                         </CardHeader>
-                                        <CardContent className="flex-1 pb-0">
+                                        <CardContent className="flex-1 pb-0 flex items-center justify-center">
                                             <ChartContainer
                                                 config={chartConfig}
-                                                className="mx-auto aspect-square max-h-[350px]"
+                                                className="mx-auto aspect-square max-h-[300px]"
                                             >
                                                 <PieChart>
                                                     <ChartTooltip
@@ -629,7 +681,6 @@ const GeoEvaluator = () => {
                                                         nameKey="company"
                                                         innerRadius={60}
                                                         strokeWidth={5}
-                                                        activeIndex={"0"}
                                                         activeShape={({
                                                             outerRadius = 0,
                                                             ...props
