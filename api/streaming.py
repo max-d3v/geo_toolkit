@@ -6,8 +6,10 @@ from rich.pretty import pprint as rpprint
 from jsonpickle import dumps
 
 from api import app
-from api import AnalysisRequest, CompanyResponse, RankingsRequest, AnalysisResponse, ErrorResponse
-from api import agent, compiled_graph
+from api import AnalysisRequest, RankingsRequest
+from api import compiled_graph
+
+from ..geo_aval import DominanceGraph
 
 @app.post("/stream/analyze/get_keywords", summary="Start Analysis Session")
 async def start_analysis_stream(request: AnalysisRequest):
@@ -21,7 +23,7 @@ async def start_analysis_stream(request: AnalysisRequest):
             session_id = str(uuid.uuid4())
             
             
-            config = {"configurable": {"thread_id": session_id}}
+            config = {"configurable": {"thread_id": session_id}, "language": request.language, "location": request.city}
 
             yield dumps({
                 "stage": "initializing",
@@ -30,7 +32,12 @@ async def start_analysis_stream(request: AnalysisRequest):
             }, unpicklable=False) + "\n"
             
             #(will stop at keyword refinement)  
-            for chunk in agent.invoke(target=request.brand_name, city=request.city, language=request.language, keywords=[], type="stream", config=config):
+            for chunk in compiled_graph.stream({
+                "keywords": [],
+                "target": request.brand_name,
+                "graph": DominanceGraph(companies=[]),
+                "messages": []
+            }, config=config):
                 yield dumps({
                     "stage": "analysys",
                     "session_id": session_id,
@@ -91,9 +98,14 @@ async def start_refine_keywords_stream(request: RankingsRequest):
             if session_id is None:
                 import uuid
                 new_session_id = str(uuid.uuid4())
-                config = {"configurable": {"thread_id": new_session_id}}
+                config = {"configurable": {"thread_id": new_session_id, "language": language, "location": city}}
                 
-                for chunk in agent.invoke(target=brand_name, city=city, language=language, keywords=keywords, type="stream", stream_type="updates", config=config):
+                for chunk in compiled_graph.stream({
+                    "keywords": keywords,
+                    "target": brand_name,
+                    "graph": DominanceGraph(companies=[]),
+                    "messages": []
+                }, config=config):
                     yield dumps({
                         "stage": "gathering_results",
                         "session_id": new_session_id,

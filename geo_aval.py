@@ -1,10 +1,7 @@
 import os
 from dotenv import load_dotenv
-from typing_extensions import Annotated, TypedDict, Optional
+from typing_extensions import TypedDict, Optional, Literal
 from rich.console import Console
-from rich.panel import Panel
-from rich.prompt import Prompt
-from rich.text import Text
 
 from langgraph.graph import MessagesState, StateGraph, END
 
@@ -44,9 +41,14 @@ class Keywords(TypedDict):
 
 # Agent definition
 
+# Since tools will be different for different runtimes place them in config?
+class ConfigSchema(TypedDict):
+    tools: List[dict]
+    language: Literal["pt_BR", "en_US"]
+    location: str
+
 class State(MessagesState):
     target: str
-    location: str
     keywords: List[str]
     graph: DominanceGraph | None
 
@@ -54,7 +56,7 @@ class Agent():
     def __init__(self):
         self.console = Console()
         
-        builder = StateGraph(State)
+        builder = StateGraph(State, config_schema=ConfigSchema)
         builder.add_node("starting_node", self.starting_node)
         builder.add_node("web_research", self.research_target)
         builder.add_node("get_keywords", self.get_keywords)
@@ -74,8 +76,6 @@ class Agent():
         return self.graph
 
     def invoke(self, target: str, city: str, language: str, keywords: List[str], type: str, stream_type: Optional[str] = None, config: dict | None = None):
-        self.language = language
-
         if language == "en_US":
             from prompts.en_US import (
                 web_info_gathering_prompt,
@@ -110,7 +110,6 @@ class Agent():
             return self.graph.invoke({
                 "keywords": keywords,
                 "target": target,
-                "location": city,
                 "graph": DominanceGraph(companies=[]),
                 "messages": []
             }, config)
@@ -118,7 +117,6 @@ class Agent():
             return self.graph.stream({
                 "keywords": keywords,
                 "target": target,
-                "location": city,
                 "graph": DominanceGraph(companies=[]),
                 "messages": []
             }, stream_mode=stream_type, config=config)
@@ -136,11 +134,10 @@ class Agent():
 
     def research_target(self, state: State):
         target = state.get("target")
-        location = state.get("location")
         web_researcher_agent = self.web_info_gathering_prompt | llm.bind_tools([self.openai_web_research_tool]) # The tool called directly in the openAI model runs automatically
         research_result = web_researcher_agent.invoke({"messages": [HumanMessage(content=target)]})
 
-        return { "messages": [HumanMessage(target), research_result], "location": location }
+        return { "messages": [HumanMessage(target), research_result] }
     
     def get_keywords(self, state: State):
         messages = state.get("messages")

@@ -6,8 +6,9 @@ from rich.pretty import pprint as rpprint
 
 from api import app
 from api import AnalysisRequest, RankingsRequest
-from api import agent, compiled_graph
+from api import compiled_graph
 
+from ..geo_aval import DominanceGraph
 
 
 @app.post("/analyze/get_keywords", summary="Start Analysis Session")
@@ -20,11 +21,15 @@ async def get_keywords(request: AnalysisRequest):
         import uuid
         session_id = str(uuid.uuid4())
         
-        
-        config = {"configurable": {"thread_id": session_id}}
+        config = {"configurable": {"thread_id": session_id, "language": request.language, "location": request.city}}
         
         #(will stop after keywords were gathered)
-        agent.invoke(target=request.brand_name, city=request.city, language=request.language, keywords=[], type="invoke",    config=config)
+        compiled_graph.invoke({
+            "keywords": [],
+            "target": request.brand_name,
+            "graph": DominanceGraph(companies=[]),
+            "messages": []
+        }, config=config)
 
         graph_state = compiled_graph.get_state(config)
         values = graph_state.values
@@ -56,8 +61,13 @@ async def get_rankings(request: RankingsRequest):
 
         if session_id is None:
             new_session_id = str(uuid.uuid4())
-            config = {"configurable": {"thread_id": new_session_id}}
-            agent.invoke(brand_name, city, language, keywords, type="invoke", config=config)
+            config = {"configurable": {"thread_id": new_session_id, "language": language, "location": city}}
+            compiled_graph.invoke({
+                "keywords": keywords,
+                "target": brand_name,
+                "graph": DominanceGraph(companies=[]),
+                "messages": []
+            }, config=config)
         else:
             config = {"configurable": {"thread_id": session_id}}
             compiled_graph.invoke(Command(resume="", update={
