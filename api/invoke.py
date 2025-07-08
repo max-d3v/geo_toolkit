@@ -8,7 +8,7 @@ from api import app
 from api import AnalysisRequest, RankingsRequest
 from api import compiled_graph
 
-from ..geo_aval import DominanceGraph
+from geo_aval import DominanceGraph
 
 
 @app.post("/analyze/get_keywords", summary="Start Analysis Session")

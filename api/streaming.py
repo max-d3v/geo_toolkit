@@ -9,7 +9,7 @@ from api import app
 from api import AnalysisRequest, RankingsRequest
 from api import compiled_graph
 
-from ..geo_aval import DominanceGraph
+from geo_aval import DominanceGraph
 
 @app.post("/stream/analyze/get_keywords", summary="Start Analysis Session")
 async def start_analysis_stream(request: AnalysisRequest):
