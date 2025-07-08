@@ -41,6 +41,7 @@ Simule ser diferentes tipos de usuários (profissionais, consumidores, empresár
 Baseado nas informações da empresa: {company_info}
 
 Pense como diferentes personas de usuários e liste o que eles digitariam no Google quando precisam dos produtos/serviços dessa empresa.
+Não adicione nenhuma que contenha o nome da empresa em questão.
 
 ## PERSONAS DE USUÁRIOS
 1. **Usuário Iniciante**: Não conhece termos técnicos

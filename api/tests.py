@@ -19,8 +19,6 @@ async def test_refine_keywords(request):
         # Simulate the refinement process using a predefined state
         resp = compiled_graph.invoke(keywords_chosen_state)
         graph_state = compiled_graph.get_state(config)
-        rpprint(graph_state)
-
         return {
             "response": resp,
         }

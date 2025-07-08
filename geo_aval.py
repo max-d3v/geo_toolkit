@@ -140,7 +140,6 @@ class Agent():
         web_researcher_agent = self.web_info_gathering_prompt | llm.bind_tools([self.openai_web_research_tool]) # The tool called directly in the openAI model runs automatically
         research_result = web_researcher_agent.invoke({"messages": [HumanMessage(content=target)]})
 
-        rpprint(research_result)
         return { "messages": [HumanMessage(target), research_result], "location": location }
     
     def get_keywords(self, state: State):
@@ -177,22 +176,23 @@ class Agent():
 
         formatted_keywords = self.add_city_to_keywords(keywords, state.get("location"))
 
-        researches_results = [] 
+
+        gathered_results = []
         for keyword in formatted_keywords:
             agent = ChatPromptTemplate([HumanMessage(keyword)]) | llm.bind_tools([self.openai_web_research_tool]) # The keywords should be structured in a way that triggers a web research. If none is triggered, will base it in the llms base of knowledge
             response = agent.invoke({})
             tool_called = response.additional_kwargs.get("tool_outputs")
-            rpprint(response)
+            
             # Filter out responses that did not trigger web research
-            if tool_called and len(tool_called) > 0:
-                researches_results.append(response)
-            
-            
-        
-        structurer_agent = self.structure_brands_dominance_prompt | llm.with_structured_output(DominanceGraph)
-        structurer_response = structurer_agent.invoke({"web_results": researches_results})
+            if tool_called is not None and len(tool_called) > 0:
+                structurer_agent = self.structure_brands_dominance_prompt | llm.with_structured_output(DominanceGraph)
+                structurer_response = structurer_agent.invoke({"web_results": [response]})
 
-        return { "graph": structurer_response.companies }
+                gathered_results.append(structurer_response.companies)
+            
+        flattened_companies = [company for companies_list in gathered_results for company in companies_list]
+
+        return { "graph": flattened_companies }
         
 
 # Basically 2 types of entities to search - LOCAL OR GLOBAL. Global would be more aimed toward SaaSes or really global companies.

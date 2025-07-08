@@ -39,7 +39,6 @@ async def start_analysis_stream(request: AnalysisRequest):
             
             graph_state = compiled_graph.get_state(config)
             values = graph_state.values
-            rpprint(values)
             keywords = values.get("keywords")
             
             yield dumps({
@@ -96,6 +95,7 @@ async def start_refine_keywords_stream(request: RankingsRequest):
                 
                 # Stream the agent invocation for new session
                 for chunk in agent.invoke(target=brand_name, city=city, language=language, keywords=keywords, type="stream", config=config):
+                    rpprint(chunk)
                     yield dumps({
                         "stage": "gathering_results",
                         "session_id": new_session_id,
