@@ -83,4 +83,4 @@ If you find this project helpful, please give it a ⭐ on GitHub!
 
 ---
 
-**Built with:** LangGraph 
+**Built with:** LangGraph + Next.js
