@@ -1,14 +1,11 @@
-import sys
-import os
 from dotenv import load_dotenv
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, model_validator
 from typing import List, Literal, Optional
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from geo_aval import Agent
 
 load_dotenv()
@@ -19,7 +16,6 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Add CORS middleware for frontend integration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://frontend:3000"],
@@ -76,10 +72,6 @@ class ErrorResponse(BaseModel):
 
 agent = Agent()
 compiled_graph = agent.get_graph()
-
-import invoke 
-import streaming
-
 
 @app.get("/", summary="API Health Check")
 async def root():

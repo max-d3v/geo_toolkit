@@ -10,6 +10,8 @@ wheels/
 .venv
 
 .env
-.env.example
+.env.*
+
+
 
 /tests/*

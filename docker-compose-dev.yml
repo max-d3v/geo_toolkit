@@ -10,7 +10,9 @@ services:
     environment:
       - GEO_AVAL_API_KEY=${GEO_AVAL_API_KEY}
     env_file:
-      - .env
+      - .env.dev
+    volumes:
+      - ./api:/app
     networks:
       - geo-network
     restart: unless-stopped
