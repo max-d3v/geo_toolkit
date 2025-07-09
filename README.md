@@ -1,4 +1,4 @@
-# 🌍 GEO (Generative Engine Optimization) Tools
+# 🤖 GEO (Generative Engine Optimization) Tools
 
 > **Discover how your brand appears in LLM responses and optimize your presence in AI-generated content.**
 
