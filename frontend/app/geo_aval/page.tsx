@@ -24,6 +24,9 @@ import {
     ChartTooltip,
     ChartTooltipContent,
 } from "@/components/ui/chart"
+import { Helix } from 'ldrs/react'
+import 'ldrs/react/Helix.css'
+
 
 interface Company {
     company: string
@@ -347,11 +350,13 @@ const GeoEvaluator = () => {
 
     // Create chart data and configuration
     const chartData = useMemo(() => {
-        return state.results.map((company, index) => ({
+        const data =  state.results.map((company, index) => ({
             company: company.company,
             times_cited: company.times_cited,
             fill: `var(--chart-${(index % 5) + 1})`,
         }))
+        console.log(data)
+        return data
     }, [state.results])
 
     const chartConfig = useMemo(() => {
@@ -495,7 +500,7 @@ const GeoEvaluator = () => {
                                     <CardDescription>
                                         {state.keywords.length === 0
                                             ? 'Keywords will appear here after analysis starts'
-                                            : 'Edit, add or remove keywords for your analysis (max 5)'
+                                            : `Edit, add or remove keywords for your analysis (max ${maxKeywords})`
                                         }
                                     </CardDescription>
                                 </CardHeader>
@@ -600,7 +605,7 @@ const GeoEvaluator = () => {
                         </div>
 
                         {state.step === 'results' && (
-                            <div className="w-full flex gap-8">
+                            <div className="w-full flex flex-wrap gap-8">
                                 {/* Companies List */}
                                 <Card className="w-full lg:w-1/2 flex flex-col">
                                     <CardHeader>
@@ -616,7 +621,11 @@ const GeoEvaluator = () => {
                                         <div className="space-y-4">
                                             {state.results.length === 0 ? (
                                                 <p className="text-muted-foreground text-center py-4">
-                                                    No companies found in the analysis
+                                                    <Helix
+                                                    size="80"
+                                                    speed="2.5"
+                                                    color="black" 
+                                                    />
                                                 </p>
                                             ) : (
                                                 state.results.map((company, index) => (

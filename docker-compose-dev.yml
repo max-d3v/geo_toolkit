@@ -9,6 +9,7 @@ services:
       - "8000:8000"
     environment:
       - GEO_AVAL_API_KEY=${GEO_AVAL_API_KEY}
+      - RELOAD=true
     env_file:
       - .env.dev
     volumes:
@@ -20,13 +21,18 @@ services:
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile-dev
     ports:
       - "3000:3000"
     environment:
       - NEXT_PUBLIC_API_URL=http://backend:8000
     depends_on:
       - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules  
+      - /app/.next         
+
     networks:
       - geo-network
     restart: unless-stopped
